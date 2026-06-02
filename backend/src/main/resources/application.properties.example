@@ -1,0 +1,36 @@
+spring.application.name=backend
+server.port=8080
+
+# ─── H2 Database (file-based, no installation needed) ────────────────────────
+spring.datasource.url=jdbc:h2:file:./data/supportdb;AUTO_SERVER=TRUE
+spring.datasource.driver-class-name=org.h2.Driver
+spring.datasource.username=sa
+spring.datasource.password=
+
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=false
+spring.jpa.properties.hibernate.dialect=org.hibernate.dialect.H2Dialect
+
+spring.h2.console.enabled=true
+spring.h2.console.path=/h2-console
+
+# ─── Email (Gmail IMAP + SMTP) ─────────────────────────────────────────────────
+# Use your Gmail App Password (NOT your regular password)
+# Get it: myaccount.google.com -> Security -> 2-Step Verification -> App passwords
+spring.mail.host=smtp.gmail.com
+spring.mail.port=587
+spring.mail.username=YOUR_GMAIL@gmail.com
+spring.mail.password=YOUR_GMAIL_APP_PASSWORD
+spring.mail.properties.mail.smtp.auth=true
+spring.mail.properties.mail.smtp.starttls.enable=true
+
+mail.imap.host=imap.gmail.com
+mail.imap.port=993
+mail.poll.interval-ms=60000
+
+# ─── JWT ───────────────────────────────────────────────────────────────────────
+app.jwt.secret=your_super_secret_jwt_key_min_32_chars_here
+app.jwt.expiration-ms=86400000
+
+# ─── Groq AI ───────────────────────────────────────────────────────────────────
+groq.api.key=YOUR_GROQ_API_KEY
