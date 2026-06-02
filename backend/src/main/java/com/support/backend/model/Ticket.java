@@ -55,6 +55,29 @@ public class Ticket {
     @Column(name = "resolved_at")
     private LocalDateTime resolvedAt;
 
+    @Builder.Default
+    private Boolean overdue = false;
+
+    private String tags;
+
+    private String sentiment;
+
+    @Column(name = "sla_deadline")
+    private LocalDateTime slaDeadline;
+
+    @Column(name = "first_response_at")
+    private LocalDateTime firstResponseAt;
+
+    @Column(name = "csat_score")
+    private Integer csatScore;
+
+    @Column(name = "csat_sent")
+    @Builder.Default
+    private Boolean csatSent = false;
+
+    @Column(name = "merged_into_id")
+    private Long mergedIntoId;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

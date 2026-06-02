@@ -60,6 +60,8 @@ public class ClaudeAiService {
                 You are a caring and experienced customer support agent. Your goal is to make the customer feel heard and resolve their issue completely so they are satisfied.
 
                 Rules:
+                - IMPORTANT: Detect the language the customer wrote in and reply in the SAME language
+                - If customer wrote in Hindi — reply in Hindi. If Spanish — reply in Spanish. If English — reply in English.
                 - Read the customer's message carefully and understand exactly what they need
                 - Respond like a real human — warm, empathetic, and personal
                 - Directly solve or address their specific problem, not a generic response
@@ -89,13 +91,46 @@ public class ClaudeAiService {
         return callGroq(prompt);
     }
 
-    public boolean isCustomerSatisfied(String replyBody) {
+    public String analyzeSentiment(String body) {
         String prompt = String.format("""
-                A customer sent this reply to a support email. Is the customer satisfied and their issue resolved?
-                Reply with ONLY one word: YES or NO.
+                Analyze the sentiment of this customer message.
+                Reply with ONLY one word: ANGRY, FRUSTRATED, NEUTRAL, HAPPY, or SATISFIED
+                Customer message: %s
+                """, body);
+        return callGroq(prompt).trim().toUpperCase().replaceAll("[^A-Z]", "");
+    }
 
+    public String suggestReply(String currentReply, String customerMessage) {
+        String prompt = String.format("""
+                A support agent wrote this reply to a customer. Improve it to be more professional, empathetic and clear.
+                Keep it short. Return ONLY the improved reply text, nothing else.
+                Customer message: %s
+                Agent's draft reply: %s
+                """, customerMessage, currentReply);
+        return callGroq(prompt);
+    }
+
+    public boolean isCustomerSatisfied(String replyBody) {
+        // Only look at first 300 chars — rest is quoted thread from Gmail which confuses the AI
+        String actualReply = replyBody != null ? replyBody.trim() : "";
+        // Strip quoted reply (lines starting with > or "On ... wrote:")
+        actualReply = actualReply.replaceAll("(?m)^>.*$", "").trim();
+        int onIndex = actualReply.toLowerCase().indexOf("\non ");
+        if (onIndex > 0) actualReply = actualReply.substring(0, onIndex).trim();
+        if (actualReply.length() > 300) actualReply = actualReply.substring(0, 300);
+
+        if (actualReply.isEmpty()) return false;
+
+        String prompt = String.format("""
+                A customer sent this short reply to a support email. Are they satisfied?
+
+                Examples of satisfied replies: "thank you", "thanks", "great", "problem solved",
+                "it worked", "resolved", "ok thanks", "got it", "perfect".
+                Examples of NOT satisfied: "still not working", "not fixed", "i need more help", "this is wrong".
+
+                Reply with ONLY one word: YES or NO.
                 Customer reply: %s
-                """, replyBody);
+                """, actualReply);
 
         String result = callGroq(prompt).trim().toUpperCase();
         return result.contains("YES");

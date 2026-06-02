@@ -4,6 +4,7 @@ import com.support.backend.service.EmailService;
 import com.support.backend.service.TicketService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -17,6 +18,32 @@ public class EmailPoller {
     private final EmailService emailService;
     private final TicketService ticketService;
 
+    @Value("${spring.mail.username}")
+    private String supportEmail;
+
+    // Feature 7: Check every minute for reminders that are due and email the agent
+    @Scheduled(fixedDelay = 60000)
+    public void processReminders() {
+        ticketService.processReminders();
+    }
+
+    @Scheduled(fixedDelay = 3600000)
+    public void autoCloseTickets() {
+        log.info("Checking for resolved tickets to auto-close...");
+        ticketService.autoCloseResolvedTickets();
+    }
+
+    @Scheduled(initialDelay = 5000, fixedDelay = 300000)
+    public void autoMarkOverdue() {
+        ticketService.autoMarkOverdue();
+    }
+
+    @Scheduled(fixedDelay = 600000) // every 10 minutes
+    public void autoAssignAndEscalate() {
+        ticketService.autoAssignUrgentTickets();
+        ticketService.escalateHighPriorityTickets();
+    }
+
     @Scheduled(fixedDelayString = "${mail.poll.interval-ms:60000}")
     public void pollEmails() {
         log.info("Polling inbox for new emails...");
@@ -27,8 +54,12 @@ public class EmailPoller {
             String subject = email.subject() != null ? email.subject() : "";
             String from = email.from() != null ? email.from().toLowerCase() : "";
 
-            if (from.startsWith("no-reply") || from.startsWith("noreply") || from.contains("accounts.google.com")) {
-                log.info("Skipping automated/no-reply email from: {}", email.from());
+            if (from.startsWith("no-reply") || from.startsWith("noreply")
+                    || from.contains("accounts.google.com")
+                    || from.equals(supportEmail.toLowerCase())
+                    || subject.startsWith("[URGENT]") || subject.startsWith("[HIGH]")
+                    || subject.startsWith("[MEDIUM]") || subject.startsWith("[LOW]")) {
+                log.info("Skipping automated/internal email from: {}", email.from());
                 continue;
             }
 

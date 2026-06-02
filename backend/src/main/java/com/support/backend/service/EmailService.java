@@ -82,12 +82,176 @@ public class EmailService {
             helper.setTo(to);
             helper.setFrom(supportEmail);
             helper.setSubject("Re: " + subject);
-            helper.setText(body, false);
+            String signature = "\n\n--\nSupport Desk | Available 24/7\nEmail: " + supportEmail + "\nPowered by AI Support System";
+            helper.setText(body + signature, false);
             mailSender.send(message);
             log.info("Reply sent to {}", to);
         } catch (Exception e) {
             log.error("Failed to send email to {}: {}", to, e.getMessage());
             throw new RuntimeException("Email send failed", e);
+        }
+    }
+
+    public void sendAcknowledgment(String to, String name, Long ticketId, String subject) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            helper.setTo(to);
+            helper.setFrom(supportEmail);
+            helper.setSubject("[Ticket #" + ticketId + "] We received your request");
+            String body = "Hi " + name + ",\n\n"
+                + "Thank you for reaching out! We've received your request and created a support ticket.\n\n"
+                + "Ticket ID: #" + ticketId + "\n"
+                + "Subject: " + subject + "\n\n"
+                + "Our team is reviewing your request and will respond as soon as possible.\n"
+                + "You can track your ticket status at any time using your email address.\n\n"
+                + "--\nSupport Desk | Available 24/7\nEmail: " + supportEmail;
+            helper.setText(body, false);
+            mailSender.send(message);
+            log.info("Acknowledgment sent to {} for ticket #{}", to, ticketId);
+        } catch (Exception e) {
+            log.error("Failed to send acknowledgment: {}", e.getMessage());
+        }
+    }
+
+    public void sendCsatSurvey(String to, String name, Long ticketId, String subject, String baseUrl) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setTo(to);
+            helper.setFrom(supportEmail);
+            helper.setSubject("[Ticket #" + ticketId + "] How did we do?");
+            String rateUrl = baseUrl + "/api/portal/csat/" + ticketId + "?score=";
+
+            String html = """
+                <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;background:#f8fafc;padding:30px;border-radius:12px;">
+                  <div style="background:white;border-radius:10px;padding:30px;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+
+                    <h2 style="color:#1e293b;margin:0 0 6px 0;">How did we do? 💬</h2>
+                    <p style="color:#64748b;margin:0 0 20px 0;font-size:14px;">
+                      Hi <strong>%s</strong>, your ticket has been resolved!
+                    </p>
+
+                    <div style="background:#f1f5f9;border-radius:8px;padding:14px;margin-bottom:24px;">
+                      <p style="margin:0;font-size:13px;color:#475569;">
+                        <strong>Ticket #%d</strong> — %s
+                      </p>
+                    </div>
+
+                    <p style="color:#374151;font-size:15px;font-weight:600;margin:0 0 16px 0;">
+                      Click a star to rate your experience:
+                    </p>
+
+                    <table style="width:100%%;border-collapse:separate;border-spacing:6px;">
+                      <tr>
+                        <td style="text-align:center;">
+                          <a href="%s1" style="display:inline-block;background:#fee2e2;color:#dc2626;text-decoration:none;padding:12px 8px;border-radius:8px;font-size:13px;font-weight:600;width:80px;">
+                            ⭐<br/>Terrible
+                          </a>
+                        </td>
+                        <td style="text-align:center;">
+                          <a href="%s2" style="display:inline-block;background:#ffedd5;color:#ea580c;text-decoration:none;padding:12px 8px;border-radius:8px;font-size:13px;font-weight:600;width:80px;">
+                            ⭐⭐<br/>Bad
+                          </a>
+                        </td>
+                        <td style="text-align:center;">
+                          <a href="%s3" style="display:inline-block;background:#fef9c3;color:#ca8a04;text-decoration:none;padding:12px 8px;border-radius:8px;font-size:13px;font-weight:600;width:80px;">
+                            ⭐⭐⭐<br/>Okay
+                          </a>
+                        </td>
+                        <td style="text-align:center;">
+                          <a href="%s4" style="display:inline-block;background:#dcfce7;color:#16a34a;text-decoration:none;padding:12px 8px;border-radius:8px;font-size:13px;font-weight:600;width:80px;">
+                            ⭐⭐⭐⭐<br/>Good
+                          </a>
+                        </td>
+                        <td style="text-align:center;">
+                          <a href="%s5" style="display:inline-block;background:#dbeafe;color:#2563eb;text-decoration:none;padding:12px 8px;border-radius:8px;font-size:13px;font-weight:600;width:80px;">
+                            ⭐⭐⭐⭐⭐<br/>Excellent
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <p style="color:#94a3b8;font-size:12px;margin:24px 0 0 0;text-align:center;">
+                      Thank you for your feedback! It helps us improve our service.
+                    </p>
+                  </div>
+                  <p style="color:#94a3b8;font-size:11px;text-align:center;margin-top:16px;">
+                    Support Desk | Available 24/7
+                  </p>
+                </div>
+                """.formatted(name, ticketId, subject,
+                    rateUrl, rateUrl, rateUrl, rateUrl, rateUrl);
+
+            helper.setText(html, true);
+            mailSender.send(message);
+            log.info("CSAT survey sent to {} for ticket #{}", to, ticketId);
+        } catch (Exception e) {
+            log.error("Failed to send CSAT survey: {}", e.getMessage());
+        }
+    }
+
+    public void sendMentionNotification(String to, String mentionedName, Long ticketId, String ticketSubject, String commentBy) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            String actualTo = (to != null && to.contains("@gmail.com")) ? to : supportEmail;
+            helper.setTo(actualTo);
+            helper.setFrom(supportEmail);
+            helper.setSubject("[Mention] " + commentBy + " mentioned you on Ticket #" + ticketId);
+            String body = "Hi " + mentionedName + ",\n\n"
+                + commentBy + " mentioned you in an internal note on Ticket #" + ticketId + ".\n\n"
+                + "Subject: " + ticketSubject + "\n\n"
+                + "Log in to the dashboard to view the note.\n\n--\nSupport Desk";
+            helper.setText(body, false);
+            mailSender.send(message);
+            log.info("Mention notification sent to {} for ticket #{}", to, ticketId);
+        } catch (Exception e) {
+            log.error("Failed to send mention notification: {}", e.getMessage());
+        }
+    }
+
+    public void sendReminderEmail(String to, Long ticketId, String ticketSubject, String note) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            // If fake internal email OR sending to self → use support email
+            // Gmail doesn't deliver self-sent SMTP emails to inbox
+            String actualTo = (to != null && to.contains("@gmail.com") && !to.equals(supportEmail))
+                    ? to : supportEmail;
+            // If still sending to self, log warning
+            if (actualTo.equals(supportEmail)) {
+                log.warn("Reminder sending to support inbox itself — check agent profile email");
+            }
+            helper.setTo(actualTo);
+            helper.setFrom(supportEmail);
+            helper.setSubject("[Reminder] Follow up on Ticket #" + ticketId);
+            String body = "Hi,\n\nThis is your scheduled reminder for Ticket #" + ticketId + ".\n\n"
+                + "Subject: " + ticketSubject + "\n"
+                + (note != null && !note.isEmpty() ? "Your note: " + note + "\n" : "")
+                + "\nLog in to the dashboard to view and respond to this ticket.\n\n--\nSupport Desk";
+            helper.setText(body, false);
+            mailSender.send(message);
+            log.info("Reminder sent to {} for ticket #{}", to, ticketId);
+        } catch (Exception e) {
+            log.error("Failed to send reminder email: {}", e.getMessage());
+        }
+    }
+
+    public void sendAgentNotification(Long ticketId, String subject, String fromEmail, String priority) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            helper.setTo(supportEmail);
+            helper.setFrom(supportEmail);
+            helper.setSubject("[" + priority + "] New ticket: " + subject);
+            helper.setText(String.format(
+                    "A new %s priority ticket requires attention.\n\nTicket #%d\nFrom: %s\nSubject: %s\n\nLog in to the dashboard to handle it.",
+                    priority, ticketId, fromEmail, subject), false);
+            mailSender.send(message);
+            log.info("Agent notification sent for ticket #{}", ticketId);
+        } catch (Exception e) {
+            log.error("Failed to send agent notification: {}", e.getMessage());
         }
     }
 
