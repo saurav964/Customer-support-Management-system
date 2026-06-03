@@ -23,6 +23,9 @@ const AUDIT_COLORS = {
   PRIORITY_CHANGED: 'bg-orange-500',
   TICKET_MERGED: 'bg-pink-500',
   OVERDUE_MARKED: 'bg-red-500',
+  FOLLOW_UP_SENT: 'bg-teal-500',
+  SLA_WARNING: 'bg-rose-500',
+  CATEGORY_CORRECTED: 'bg-indigo-500',
 }
 
 export default function TicketDetail() {
@@ -96,6 +99,15 @@ export default function TicketDetail() {
     queryFn: () => api.get('/templates').then(r => r.data),
   })
 
+  // Feature 6: Related knowledge base articles based on ticket category
+  const { data: relatedArticles = [] } = useQuery({
+    queryKey: ['knowledge', ticket?.category],
+    queryFn: () => api.get('/knowledge').then(r =>
+      r.data.filter(a => a.category === ticket?.category).slice(0, 3)
+    ),
+    enabled: !!ticket?.category,
+  })
+
   // Feature 2: Audit log — full history of who did what
   const { data: auditLog = [] } = useQuery({
     queryKey: ['audit-log', id],
@@ -137,6 +149,11 @@ export default function TicketDetail() {
     queryKey: ['duplicates', id],
     queryFn: () => api.get(`/tickets/${id}/duplicates`).then(r => r.data),
     enabled: !!ticket,
+  })
+
+  const categoryMutation = useMutation({
+    mutationFn: category => api.patch(`/tickets/${id}/category`, { category }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ticket', id] }),
   })
 
   const tagsMutation = useMutation({
@@ -303,12 +320,19 @@ export default function TicketDetail() {
               </div>
               {showTemplates && (
                 <div className="mb-3 border border-slate-200 rounded-lg overflow-hidden">
-                  {templates.map(t => (
-                    <button key={t.id} onClick={() => { setReply(t.content); setShowTemplates(false) }}
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 border-b border-slate-100 last:border-0">
-                      <span className="font-medium text-slate-700">{t.title}</span>
-                      <span className="text-slate-400 text-xs ml-2">{t.category}</span>
-                    </button>
+                  {templates.length === 0 ? (
+                    <p className="text-xs text-slate-400 p-3">No templates yet. Add them in the Templates page.</p>
+                  ) : templates.map(t => (
+                    <div key={t.id} className="border-b border-slate-100 last:border-0">
+                      <button onClick={() => { setReply(t.content); setShowTemplates(false) }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50 transition">
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium text-slate-700">{t.title}</span>
+                          <span className="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">{t.category}</span>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">{t.content}</p>
+                      </button>
+                    </div>
                   ))}
                 </div>
               )}
@@ -394,7 +418,20 @@ export default function TicketDetail() {
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Ticket Info</p>
             <InfoRow label="Status" value={ticket.status.replace('_', ' ')} />
             <InfoRow label="Priority" value={ticket.priority} />
-            <InfoRow label="Category" value={ticket.category ?? '—'} />
+            <div>
+              <p className="text-xs text-slate-400">Category</p>
+              {isClosedOrResolved ? (
+                <p className="text-sm font-medium text-slate-700">{ticket.category ?? '—'}</p>
+              ) : (
+                <select value={ticket.category ?? ''} onChange={e => categoryMutation.mutate(e.target.value)}
+                  className="mt-0.5 w-full text-sm border border-slate-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">Select category</option>
+                  {['Billing','Account','Technical','Shipping','Returns','General'].map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              )}
+            </div>
             <div>
               <p className="text-xs text-slate-400">Assigned To</p>
               {isClosedOrResolved ? (
@@ -534,6 +571,23 @@ export default function TicketDetail() {
                       className="flex items-center gap-1 text-xs bg-orange-500 text-white px-2 py-0.5 rounded hover:bg-orange-600 disabled:opacity-50 shrink-0">
                       <GitMerge size={10} /> Merge
                     </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Feature 6: Related Knowledge Base Articles */}
+          {relatedArticles.length > 0 && (
+            <div className="bg-blue-50 rounded-xl border border-blue-200 p-4">
+              <p className="text-xs font-semibold text-blue-600 uppercase tracking-wide mb-2">
+                📚 Related Articles ({ticket?.category})
+              </p>
+              <div className="space-y-2">
+                {relatedArticles.map(a => (
+                  <div key={a.id} className="bg-white rounded-lg border border-blue-100 p-2">
+                    <p className="text-xs font-medium text-slate-700">{a.title}</p>
+                    <p className="text-xs text-slate-400 mt-0.5 line-clamp-2">{a.content?.slice(0, 80)}...</p>
                   </div>
                 ))}
               </div>

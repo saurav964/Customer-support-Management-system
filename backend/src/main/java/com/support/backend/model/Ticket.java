@@ -78,6 +78,10 @@ public class Ticket {
     @Column(name = "merged_into_id")
     private Long mergedIntoId;
 
+    @Column(name = "follow_up_sent")
+    @Builder.Default
+    private Boolean followUpSent = false;
+
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;

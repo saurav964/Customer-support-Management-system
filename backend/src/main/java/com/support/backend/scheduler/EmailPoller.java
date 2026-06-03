@@ -21,6 +21,24 @@ public class EmailPoller {
     @Value("${spring.mail.username}")
     private String supportEmail;
 
+    // Feature: Auto follow-up — runs every hour, emails customers with 48h+ unresolved tickets
+    @Scheduled(fixedDelay = 3600000)
+    public void autoFollowUps() {
+        ticketService.autoSendFollowUps();
+    }
+
+    // Feature 2: SLA breach alert — check every 5 minutes
+    @Scheduled(fixedDelay = 300000)
+    public void checkSlaBreaches() {
+        ticketService.checkSlaBreaches();
+    }
+
+    // Feature 3: Daily performance report — every 24 hours
+    @Scheduled(fixedDelay = 86400000, initialDelay = 10000)
+    public void dailyPerformanceReport() {
+        ticketService.sendDailyPerformanceReport();
+    }
+
     // Feature 7: Check every minute for reminders that are due and email the agent
     @Scheduled(fixedDelay = 60000)
     public void processReminders() {

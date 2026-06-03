@@ -131,18 +131,30 @@ export default function Tickets() {
   }, [tickets.length])
 
   const filteredTickets = useMemo(() => {
-    if (!search.trim()) return tickets
-    const q = search.toLowerCase()
-    return tickets.filter(t =>
-      t.subject?.toLowerCase().includes(q) ||
-      t.fromEmail?.toLowerCase().includes(q) ||
-      t.fromName?.toLowerCase().includes(q) ||
-      t.category?.toLowerCase().includes(q) ||
-      t.tags?.toLowerCase().includes(q)
-    )
+    let result = tickets
+    if (search.trim()) {
+      const q = search.toLowerCase()
+      result = result.filter(t =>
+        t.subject?.toLowerCase().includes(q) ||
+        t.fromEmail?.toLowerCase().includes(q) ||
+        t.fromName?.toLowerCase().includes(q) ||
+        t.category?.toLowerCase().includes(q) ||
+        t.tags?.toLowerCase().includes(q)
+      )
+    }
+    // Feature 4: Priority inbox — URGENT always on top, then HIGH, then rest
+    return [...result].sort((a, b) => {
+      const order = { URGENT: 0, HIGH: 1, MEDIUM: 2, LOW: 3 }
+      const aOpen = a.status === 'OPEN' || a.status === 'IN_PROGRESS'
+      const bOpen = b.status === 'OPEN' || b.status === 'IN_PROGRESS'
+      if (aOpen && !bOpen) return -1
+      if (!aOpen && bOpen) return 1
+      return (order[a.priority] ?? 2) - (order[b.priority] ?? 2)
+    })
   }, [tickets, search])
 
   const overdueCount = tickets.filter(t => t.overdue && t.status === 'OPEN').length
+  const urgentCount = tickets.filter(t => t.priority === 'URGENT' && (t.status === 'OPEN' || t.status === 'IN_PROGRESS')).length
   const allSelected = filteredTickets.length > 0 && filteredTickets.every(t => selected.includes(t.id))
 
   const toggleSelect = (id) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
@@ -150,6 +162,14 @@ export default function Tickets() {
 
   return (
     <Layout>
+      {/* Feature 4: Priority inbox — urgent alert banner */}
+      {urgentCount > 0 && (
+        <div className="mb-4 bg-red-50 border border-red-300 rounded-xl px-4 py-3 flex items-center gap-2">
+          <span className="text-red-600 font-bold text-sm animate-pulse">🚨 {urgentCount} URGENT ticket{urgentCount > 1 ? 's' : ''} need immediate attention!</span>
+          <span className="text-red-400 text-xs">Sorted to top automatically.</span>
+        </div>
+      )}
+
       {/* Feature 8: Saved Filters bar */}
       {savedFilters.length > 0 && (
         <div className="flex items-center gap-2 mb-3 flex-wrap">

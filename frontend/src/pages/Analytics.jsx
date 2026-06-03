@@ -12,6 +12,12 @@ export default function Analytics() {
     refetchInterval: 60000,
   })
 
+  const { data: heatmap = {} } = useQuery({
+    queryKey: ['heatmap'],
+    queryFn: () => api.get('/analytics/heatmap').then(r => r.data),
+    refetchInterval: 60000,
+  })
+
   const { data: agentData = {} } = useQuery({
     queryKey: ['agent-performance'],
     queryFn: () => api.get('/analytics/agents').then(r => r.data),
@@ -194,6 +200,35 @@ export default function Analytics() {
           </table>
         </div>
       )}
+
+      {/* Feature 5: Ticket Heatmap */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <p className="text-sm font-semibold text-slate-600 mb-1">Tickets by Hour of Day</p>
+          <p className="text-xs text-slate-400 mb-4">Helps schedule agents at peak hours</p>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={Object.entries(heatmap?.byHour ?? {}).map(([hour, count]) => ({ hour, count }))}>
+              <XAxis dataKey="hour" tick={{ fontSize: 10 }} interval={3} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+              <Tooltip />
+              <Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 p-5">
+          <p className="text-sm font-semibold text-slate-600 mb-1">Tickets by Day of Week</p>
+          <p className="text-xs text-slate-400 mb-4">Helps plan staffing for busy days</p>
+          <ResponsiveContainer width="100%" height={200}>
+            <BarChart data={Object.entries(heatmap?.byDay ?? {}).map(([day, count]) => ({ day: day.slice(0,3), count }))}>
+              <XAxis dataKey="day" tick={{ fontSize: 12 }} />
+              <YAxis allowDecimals={false} tick={{ fontSize: 12 }} />
+              <Tooltip />
+              <Bar dataKey="count" fill="#10b981" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
     </Layout>
   )
 }

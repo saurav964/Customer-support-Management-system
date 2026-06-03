@@ -10,8 +10,10 @@ import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
 
 @Service
@@ -235,6 +237,84 @@ public class EmailService {
             log.info("Reminder sent to {} for ticket #{}", to, ticketId);
         } catch (Exception e) {
             log.error("Failed to send reminder email: {}", e.getMessage());
+        }
+    }
+
+    public void sendDailyPerformanceReport(Map<String, Object> agentStats) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            helper.setTo(supportEmail);
+            helper.setFrom(supportEmail);
+            helper.setSubject("📊 Daily Agent Performance Report — " + java.time.LocalDate.now());
+            StringBuilder body = new StringBuilder();
+            body.append("Daily Agent Performance Report\n");
+            body.append("Date: ").append(java.time.LocalDate.now()).append("\n\n");
+            body.append("─────────────────────────────────\n");
+            agentStats.forEach((agentName, stats) -> {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> s = (Map<String, Object>) stats;
+                body.append("Agent: ").append(agentName).append("\n");
+                body.append("  Total Assigned: ").append(s.get("total")).append("\n");
+                body.append("  Resolved:       ").append(s.get("resolved")).append("\n");
+                long total = ((Number) s.get("total")).longValue();
+                long resolved = ((Number) s.get("resolved")).longValue();
+                double rate = total > 0 ? Math.round((double) resolved / total * 100) : 0;
+                body.append("  Success Rate:   ").append(rate).append("%\n");
+                body.append("─────────────────────────────────\n");
+            });
+            body.append("\nLog in to dashboard for full analytics.\n\n--\nSupport Desk");
+            helper.setText(body.toString(), false);
+            mailSender.send(message);
+            log.info("Daily performance report sent");
+        } catch (Exception e) {
+            log.error("Failed to send daily report: {}", e.getMessage());
+        }
+    }
+
+    public void sendSlaBreachAlert(String to, Long ticketId, String subject, String priority, LocalDateTime deadline) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            String actualTo = (to != null && to.contains("@gmail.com") && !to.equals(supportEmail)) ? to : supportEmail;
+            helper.setTo(actualTo);
+            helper.setFrom(supportEmail);
+            helper.setSubject("⚠️ SLA Breach Warning — Ticket #" + ticketId);
+            String body = "URGENT: SLA Breach Warning!\n\n"
+                + "Ticket #" + ticketId + " is about to breach its SLA deadline.\n\n"
+                + "Subject:  " + subject + "\n"
+                + "Priority: " + priority + "\n"
+                + "Deadline: " + deadline + "\n\n"
+                + "Please respond to this ticket immediately!\n\n"
+                + "--\nSupport Desk";
+            helper.setText(body, false);
+            mailSender.send(message);
+            log.info("SLA breach alert sent for ticket #{}", ticketId);
+        } catch (Exception e) {
+            log.error("Failed to send SLA breach alert: {}", e.getMessage());
+        }
+    }
+
+    public void sendFollowUpEmail(String to, String name, Long ticketId, String subject, String status) {
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, false, "UTF-8");
+            helper.setTo(to);
+            helper.setFrom(supportEmail);
+            helper.setSubject("[Ticket #" + ticketId + "] We are still working on your issue");
+            String body = "Hi " + name + ",\n\n"
+                + "We wanted to let you know that we are still working on your issue.\n\n"
+                + "Ticket ID: #" + ticketId + "\n"
+                + "Subject: " + subject + "\n"
+                + "Status: " + status + "\n\n"
+                + "We apologize for the delay. Our team will resolve this as soon as possible.\n"
+                + "You don't need to send another email — we have your request and are on it.\n\n"
+                + "--\nSupport Desk | Available 24/7\nEmail: " + supportEmail;
+            helper.setText(body, false);
+            mailSender.send(message);
+            log.info("Follow-up email sent to {} for ticket #{}", to, ticketId);
+        } catch (Exception e) {
+            log.error("Failed to send follow-up email: {}", e.getMessage());
         }
     }
 

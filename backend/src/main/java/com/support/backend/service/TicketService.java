@@ -44,6 +44,9 @@ public class TicketService {
     @Value("${app.base-url:http://localhost:8080}")
     private String baseUrl;
 
+    @Value("${spring.mail.username}")
+    private String supportEmail;
+
     // ─── Create ───────────────────────────────────────────────────────────────
 
     public Ticket createFromEmail(EmailService.EmailMessage email) {
@@ -174,6 +177,17 @@ public class TicketService {
         Ticket saved = ticketRepository.save(ticket);
         logAudit(saved.getId(), "AGENT_REPLIED", "Manual reply sent by " + agentEmail, agentEmail);
         sseEmitterService.broadcast("ticket-update", saved.getId().toString());
+        return saved;
+    }
+
+    // Feature 9: Agent corrects AI category — logs correction for future improvement
+    public Ticket updateCategory(Long id, String category, String performedBy) {
+        Ticket ticket = getById(id);
+        String oldCategory = ticket.getCategory();
+        ticket.setCategory(category);
+        Ticket saved = ticketRepository.save(ticket);
+        logAudit(saved.getId(), "CATEGORY_CORRECTED",
+                "Category changed from " + oldCategory + " to " + category + " by agent", performedBy);
         return saved;
     }
 
@@ -392,6 +406,55 @@ public class TicketService {
                 });
     }
 
+    // Feature 3: Daily performance report
+    public void sendDailyPerformanceReport() {
+        Map<String, Object> stats = getAgentPerformance();
+        if (!stats.isEmpty()) {
+            emailService.sendDailyPerformanceReport(stats);
+        }
+    }
+
+    // Feature 2: SLA Breach Alert — warn agent 30 minutes before SLA deadline
+    public void checkSlaBreaches() {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime warningCutoff = now.plusMinutes(30);
+        ticketRepository.findAll().stream()
+                .filter(t -> t.getSlaDeadline() != null
+                        && t.getStatus() != Ticket.TicketStatus.RESOLVED
+                        && t.getStatus() != Ticket.TicketStatus.CLOSED
+                        && t.getSlaDeadline().isAfter(now)
+                        && t.getSlaDeadline().isBefore(warningCutoff))
+                .forEach(t -> {
+                    String alertTo = t.getAssignedTo() != null ? t.getAssignedTo() : supportEmail;
+                    emailService.sendSlaBreachAlert(alertTo, t.getId(),
+                            t.getSubject(), t.getPriority().name(), t.getSlaDeadline());
+                    logAudit(t.getId(), "SLA_WARNING",
+                            "SLA breach warning sent — deadline in 30 minutes", "SYSTEM");
+                    log.info("SLA breach alert sent for ticket #{}", t.getId());
+                });
+    }
+
+    // Feature: Auto follow-up — if ticket not resolved in 48 hours, email customer
+    public void autoSendFollowUps() {
+        LocalDateTime cutoff = LocalDateTime.now().minusHours(48);
+        ticketRepository.findAll().stream()
+                .filter(t -> !Boolean.TRUE.equals(t.getFollowUpSent())
+                        && t.getStatus() != Ticket.TicketStatus.RESOLVED
+                        && t.getStatus() != Ticket.TicketStatus.CLOSED
+                        && t.getCreatedAt() != null
+                        && t.getCreatedAt().isBefore(cutoff))
+                .forEach(t -> {
+                    emailService.sendFollowUpEmail(
+                            t.getFromEmail(), t.getFromName(),
+                            t.getId(), t.getSubject(), t.getStatus().name());
+                    t.setFollowUpSent(true);
+                    ticketRepository.save(t);
+                    logAudit(t.getId(), "FOLLOW_UP_SENT",
+                            "Auto follow-up email sent to customer after 48h", "SYSTEM");
+                    log.info("Follow-up sent for ticket #{}", t.getId());
+                });
+    }
+
     // Feature 7: Process due reminders
     public void processReminders() {
         List<Reminder> due = reminderRepository.findBySentFalseAndRemindAtBefore(LocalDateTime.now());
@@ -411,6 +474,28 @@ public class TicketService {
     }
 
     // ─── Analytics & Stats ───────────────────────────────────────────────────
+
+    // Feature 5: Ticket heatmap — tickets by hour of day and day of week
+    public Map<String, Object> getHeatmap() {
+        List<Ticket> all = ticketRepository.findAll();
+
+        Map<String, Long> byHour = new java.util.LinkedHashMap<>();
+        for (int h = 0; h < 24; h++) {
+            final int hour = h;
+            byHour.put(String.format("%02d:00", h),
+                    all.stream().filter(t -> t.getCreatedAt() != null && t.getCreatedAt().getHour() == hour).count());
+        }
+
+        Map<String, Long> byDay = new java.util.LinkedHashMap<>();
+        String[] days = {"MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"};
+        for (String day : days) {
+            java.time.DayOfWeek dow = java.time.DayOfWeek.valueOf(day);
+            byDay.put(day, all.stream()
+                    .filter(t -> t.getCreatedAt() != null && t.getCreatedAt().getDayOfWeek() == dow).count());
+        }
+
+        return Map.of("byHour", byHour, "byDay", byDay);
+    }
 
     public DashboardStats getDashboardStats() {
         Map<String, Long> byStatus = new HashMap<>();

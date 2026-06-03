@@ -166,6 +166,19 @@ public class TicketController {
         return ResponseEntity.ok(ticketService.getSatisfactionScore());
     }
 
+    @GetMapping("/analytics/heatmap")
+    public ResponseEntity<Map<String, Object>> heatmap() {
+        return ResponseEntity.ok(ticketService.getHeatmap());
+    }
+
+    // Feature 9: Agent corrects AI category
+    @PatchMapping("/tickets/{id}/category")
+    public ResponseEntity<Ticket> updateCategory(@PathVariable Long id,
+                                                  @RequestBody Map<String, String> body,
+                                                  Authentication auth) {
+        return ResponseEntity.ok(ticketService.updateCategory(id, body.get("category"), auth.getName()));
+    }
+
     @GetMapping("/dashboard/stats")
     public ResponseEntity<DashboardStats> stats(Authentication auth) {
         User user = userRepository.findByEmail(auth.getName()).orElseThrow();

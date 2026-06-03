@@ -21,6 +21,23 @@ public class CustomerPortalController {
         return ResponseEntity.ok(ticketRepository.findByFromEmailOrderByCreatedAtDesc(email));
     }
 
+    // Feature 8: Public ticket tracking by ID — like courier tracking
+    @GetMapping("/track/{ticketId}")
+    public ResponseEntity<Map<String, Object>> trackTicket(@PathVariable Long ticketId) {
+        return ticketRepository.findById(ticketId).map(t -> {
+            Map<String, Object> result = new java.util.LinkedHashMap<>();
+            result.put("id", t.getId());
+            result.put("subject", t.getSubject());
+            result.put("status", t.getStatus());
+            result.put("priority", t.getPriority());
+            result.put("category", t.getCategory());
+            result.put("createdAt", t.getCreatedAt());
+            result.put("resolvedAt", t.getResolvedAt());
+            result.put("slaDeadline", t.getSlaDeadline());
+            return ResponseEntity.ok(result);
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
     // Feature 4: CSAT — customer clicks a star rating link in their resolution email
     // No auth needed; the link is unique per ticket and only sent to the ticket owner
     @GetMapping("/csat/{ticketId}")
