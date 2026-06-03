@@ -155,6 +155,11 @@ export default function Tickets() {
 
   const overdueCount = tickets.filter(t => t.overdue && t.status === 'OPEN').length
   const urgentCount = tickets.filter(t => t.priority === 'URGENT' && (t.status === 'OPEN' || t.status === 'IN_PROGRESS')).length
+  const slaBreachingSoon = tickets.filter(t => {
+    if (!t.slaDeadline || t.status === 'RESOLVED' || t.status === 'CLOSED') return false
+    const diffMin = (new Date(t.slaDeadline) - new Date()) / 60000
+    return diffMin >= 0 && diffMin < 60
+  }).length
   const allSelected = filteredTickets.length > 0 && filteredTickets.every(t => selected.includes(t.id))
 
   const toggleSelect = (id) => setSelected(s => s.includes(id) ? s.filter(x => x !== id) : [...s, id])
@@ -164,9 +169,17 @@ export default function Tickets() {
     <Layout>
       {/* Feature 4: Priority inbox — urgent alert banner */}
       {urgentCount > 0 && (
-        <div className="mb-4 bg-red-50 border border-red-300 rounded-xl px-4 py-3 flex items-center gap-2">
+        <div className="mb-3 bg-red-50 border border-red-300 rounded-xl px-4 py-3 flex items-center gap-2">
           <span className="text-red-600 font-bold text-sm animate-pulse">🚨 {urgentCount} URGENT ticket{urgentCount > 1 ? 's' : ''} need immediate attention!</span>
           <span className="text-red-400 text-xs">Sorted to top automatically.</span>
+        </div>
+      )}
+
+      {/* Feature 2: SLA breach warning banner */}
+      {slaBreachingSoon > 0 && (
+        <div className="mb-3 bg-orange-50 border border-orange-300 rounded-xl px-4 py-3 flex items-center gap-2">
+          <span className="text-orange-600 font-bold text-sm animate-pulse">⏰ {slaBreachingSoon} ticket{slaBreachingSoon > 1 ? 's' : ''} breaching SLA within 1 hour!</span>
+          <span className="text-orange-400 text-xs">Look for "SLA Soon" badge in the list.</span>
         </div>
       )}
 
@@ -316,6 +329,14 @@ export default function Tickets() {
                       {ticket.overdue && ticket.status === 'OPEN' && (
                         <span className="text-xs bg-red-100 text-red-600 font-semibold px-1.5 py-0.5 rounded">OVERDUE</span>
                       )}
+                      {ticket.slaDeadline && ticket.status !== 'RESOLVED' && ticket.status !== 'CLOSED' && (() => {
+                        const deadline = new Date(ticket.slaDeadline)
+                        const now = new Date()
+                        const diffMin = (deadline - now) / 60000
+                        if (diffMin < 0) return <span className="text-xs bg-red-200 text-red-700 font-semibold px-1.5 py-0.5 rounded">⚠️ SLA BREACHED</span>
+                        if (diffMin < 60) return <span className="text-xs bg-orange-100 text-orange-600 font-semibold px-1.5 py-0.5 rounded">⏰ SLA Soon</span>
+                        return null
+                      })()}
                       {ticket.tags && ticket.tags.split(',').map(tag => (
                         <span key={tag} className="text-xs bg-purple-100 text-purple-600 px-1.5 py-0.5 rounded-full">#{tag.trim()}</span>
                       ))}

@@ -288,6 +288,18 @@ public class TicketService {
 
     public boolean processCustomerReply(EmailService.EmailMessage email) {
         String originalSubject = email.subject().replaceAll("(?i)^(re:\\s*)+", "").trim();
+
+        // If reply is to a system email like "[Ticket #48] We are still working..."
+        // or "[Ticket #48] We received your request" — do NOT auto-resolve
+        // Customer saying "thank you" to a follow-up/acknowledgment just means
+        // they acknowledged the update, NOT that their problem is solved
+        java.util.regex.Matcher ticketMatcher = java.util.regex.Pattern
+                .compile("\\[Ticket #(\\d+)\\]").matcher(originalSubject);
+        if (ticketMatcher.find()) {
+            log.info("Customer replied to system email (follow-up/acknowledgment) — not auto-resolving");
+            return true; // handled but not resolved — agent must resolve manually
+        }
+
         List<Ticket> matches = ticketRepository.findByFromEmailAndSubjectIgnoreCaseAndStatusNot(
                 email.from(), originalSubject, Ticket.TicketStatus.CLOSED);
         if (matches.isEmpty()) return false;
@@ -418,6 +430,14 @@ public class TicketService {
     public void checkSlaBreaches() {
         LocalDateTime now = LocalDateTime.now();
         LocalDateTime warningCutoff = now.plusMinutes(30);
+
+        // Get all real Gmail addresses from users (non-support emails)
+        List<String> realEmails = agentRepository.findAll().stream()
+                .map(u -> u.getEmail())
+                .filter(e -> e != null && e.contains("@gmail.com") && !e.equals(supportEmail))
+                .distinct()
+                .collect(Collectors.toList());
+
         ticketRepository.findAll().stream()
                 .filter(t -> t.getSlaDeadline() != null
                         && t.getStatus() != Ticket.TicketStatus.RESOLVED
@@ -425,9 +445,21 @@ public class TicketService {
                         && t.getSlaDeadline().isAfter(now)
                         && t.getSlaDeadline().isBefore(warningCutoff))
                 .forEach(t -> {
-                    String alertTo = t.getAssignedTo() != null ? t.getAssignedTo() : supportEmail;
-                    emailService.sendSlaBreachAlert(alertTo, t.getId(),
-                            t.getSubject(), t.getPriority().name(), t.getSlaDeadline());
+                    // Try assigned agent first if they have a real Gmail
+                    String assignedEmail = t.getAssignedTo();
+                    if (assignedEmail != null && assignedEmail.contains("@gmail.com")
+                            && !assignedEmail.equals(supportEmail)) {
+                        emailService.sendSlaBreachAlert(assignedEmail, t.getId(),
+                                t.getSubject(), t.getPriority().name(), t.getSlaDeadline());
+                    } else if (!realEmails.isEmpty()) {
+                        // Send to all real Gmail users (admins/agents with real email)
+                        realEmails.forEach(email -> emailService.sendSlaBreachAlert(
+                                email, t.getId(), t.getSubject(), t.getPriority().name(), t.getSlaDeadline()));
+                    } else {
+                        // Last resort — send to support email (self-send, may not arrive)
+                        emailService.sendSlaBreachAlert(supportEmail, t.getId(),
+                                t.getSubject(), t.getPriority().name(), t.getSlaDeadline());
+                    }
                     logAudit(t.getId(), "SLA_WARNING",
                             "SLA breach warning sent — deadline in 30 minutes", "SYSTEM");
                     log.info("SLA breach alert sent for ticket #{}", t.getId());

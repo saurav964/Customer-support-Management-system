@@ -122,11 +122,21 @@ public class ClaudeAiService {
         if (actualReply.isEmpty()) return false;
 
         String prompt = String.format("""
-                A customer sent this short reply to a support email. Are they satisfied?
+                You are checking if a customer's reply clearly means their issue is FULLY RESOLVED
+                and they are thanking/closing the conversation.
 
-                Examples of satisfied replies: "thank you", "thanks", "great", "problem solved",
-                "it worked", "resolved", "ok thanks", "got it", "perfect".
-                Examples of NOT satisfied: "still not working", "not fixed", "i need more help", "this is wrong".
+                Reply YES only if the customer is clearly expressing gratitude or closure, such as:
+                "thank you", "thanks", "great", "problem solved", "it worked", "resolved",
+                "ok thanks", "got it, thanks", "perfect", "that fixed it", "all good now".
+
+                Reply NO for everything else, including:
+                - Customer providing more information (account number, SIM number, order ID, details)
+                - Customer asking a question
+                - Customer continuing the conversation
+                - Customer describing the problem again
+                - Anything unclear or neutral
+
+                IMPORTANT: If you are not sure, reply NO. Only reply YES for a clear thank you / closure.
 
                 Reply with ONLY one word: YES or NO.
                 Customer reply: %s

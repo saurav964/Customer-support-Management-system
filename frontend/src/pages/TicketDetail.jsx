@@ -102,9 +102,17 @@ export default function TicketDetail() {
   // Feature 6: Related knowledge base articles based on ticket category
   const { data: relatedArticles = [] } = useQuery({
     queryKey: ['knowledge', ticket?.category],
-    queryFn: () => api.get('/knowledge').then(r =>
-      r.data.filter(a => a.category === ticket?.category).slice(0, 3)
-    ),
+    queryFn: () => api.get('/knowledge').then(r => {
+      const matching = r.data.filter(a => a.category === ticket?.category)
+      // Remove duplicate titles so the same article never shows twice
+      const seen = new Set()
+      const unique = matching.filter(a => {
+        if (seen.has(a.title)) return false
+        seen.add(a.title)
+        return true
+      })
+      return unique.slice(0, 3)
+    }),
     enabled: !!ticket?.category,
   })
 
