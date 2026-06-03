@@ -70,8 +70,13 @@ public class TicketController {
         return ResponseEntity.ok(ticketService.replyToTicket(id, request.getMessage(), auth.getName()));
     }
 
+    // Feature 6: Role-based — only ADMIN can delete tickets
     @DeleteMapping("/tickets/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<Void> delete(@PathVariable Long id, Authentication auth) {
+        User user = userRepository.findByEmail(auth.getName()).orElseThrow();
+        if (user.getRole() != User.Role.ADMIN) {
+            return ResponseEntity.status(403).build();
+        }
         ticketService.deleteById(id);
         return ResponseEntity.noContent().build();
     }
@@ -126,7 +131,11 @@ public class TicketController {
     }
 
     @PostMapping("/tickets/bulk-delete")
-    public ResponseEntity<Void> bulkDelete(@RequestBody Map<String, Object> body) {
+    public ResponseEntity<Void> bulkDelete(@RequestBody Map<String, Object> body, Authentication auth) {
+        User user = userRepository.findByEmail(auth.getName()).orElseThrow();
+        if (user.getRole() != User.Role.ADMIN) {
+            return ResponseEntity.status(403).build();
+        }
         List<Long> ids = ((List<?>) body.get("ids")).stream().map(i -> Long.valueOf(i.toString())).toList();
         ticketService.bulkDelete(ids);
         return ResponseEntity.ok().build();
@@ -169,6 +178,11 @@ public class TicketController {
     @GetMapping("/analytics/heatmap")
     public ResponseEntity<Map<String, Object>> heatmap() {
         return ResponseEntity.ok(ticketService.getHeatmap());
+    }
+
+    @GetMapping("/analytics/sla-compliance")
+    public ResponseEntity<Map<String, Object>> slaCompliance() {
+        return ResponseEntity.ok(ticketService.getSlaCompliance());
     }
 
     // Feature 9: Agent corrects AI category

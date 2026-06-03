@@ -1,3 +1,4 @@
+
 package com.support.backend.model;
 
 import jakarta.persistence.*;
@@ -81,6 +82,12 @@ public class Ticket {
     @Column(name = "follow_up_sent")
     @Builder.Default
     private Boolean followUpSent = false;
+
+    @Column(name = "ai_summary", columnDefinition = "TEXT")
+    private String aiSummary;
+
+    @Column(name = "assigned_skill")
+    private String assignedSkill;
 
     @CreationTimestamp
     @Column(name = "created_at", updatable = false)

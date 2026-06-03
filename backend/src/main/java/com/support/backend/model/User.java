@@ -29,6 +29,11 @@ public class User {
     @Builder.Default
     private Role role = Role.AGENT;
 
+    // Feature: Skills — comma-separated categories this agent handles
+    // e.g. "Billing,Account" — used for smart auto-assignment
+    @Column(name = "skills")
+    private String skills;
+
     public enum Role {
         ADMIN, AGENT
     }

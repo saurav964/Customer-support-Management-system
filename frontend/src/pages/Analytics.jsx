@@ -18,6 +18,12 @@ export default function Analytics() {
     refetchInterval: 60000,
   })
 
+  const { data: sla = {} } = useQuery({
+    queryKey: ['sla-compliance'],
+    queryFn: () => api.get('/analytics/sla-compliance').then(r => r.data),
+    refetchInterval: 60000,
+  })
+
   const { data: agentData = {} } = useQuery({
     queryKey: ['agent-performance'],
     queryFn: () => api.get('/analytics/agents').then(r => r.data),
@@ -116,6 +122,22 @@ export default function Analytics() {
           {data?.avgCsatScore > 0 && (
             <p className="text-xl mt-1">{'⭐'.repeat(Math.round(data.avgCsatScore))}</p>
           )}
+        </div>
+
+        {/* Feature 5: SLA Compliance */}
+        <div className="bg-white rounded-xl border border-slate-200 p-5 col-span-2">
+          <p className="text-sm text-slate-500">SLA Compliance Rate</p>
+          <div className="flex items-end gap-2 mt-1">
+            <p className={`text-3xl font-bold ${sla?.compliancePercent >= 90 ? 'text-green-600' : sla?.compliancePercent >= 70 ? 'text-amber-500' : 'text-red-600'}`}>
+              {sla?.compliancePercent ?? 0}%
+            </p>
+            <p className="text-xs text-slate-400 mb-1">{sla?.met ?? 0} met · {sla?.breached ?? 0} breached (of {sla?.total ?? 0})</p>
+          </div>
+          <div className="w-full bg-slate-100 rounded-full h-2 mt-2">
+            <div className={`h-2 rounded-full ${sla?.compliancePercent >= 90 ? 'bg-green-500' : sla?.compliancePercent >= 70 ? 'bg-amber-400' : 'bg-red-500'}`}
+              style={{ width: `${sla?.compliancePercent ?? 0}%` }} />
+          </div>
+          <p className="text-xs text-slate-400 mt-1">% of resolved tickets that met their deadline</p>
         </div>
       </div>
 

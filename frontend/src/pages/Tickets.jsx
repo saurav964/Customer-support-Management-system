@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { Download, Trash2, Search, CheckSquare, Square, Bookmark, X } from 'lucide-react'
 import api from '../api/axios'
 import Layout from '../components/Layout'
+import { useAuthStore } from '../store/authStore'
 
 const STATUS_COLORS = {
   OPEN: 'bg-amber-100 text-amber-700',
@@ -36,6 +37,8 @@ export default function Tickets() {
   const [filterName, setFilterName] = useState('')
   const queryClient = useQueryClient()
   const prevCountRef = useRef(null)
+  const { user } = useAuthStore()
+  const isAdmin = user?.role === 'ADMIN'  // Feature 6: only admin sees delete
 
   // Feature 8: Saved filters — personal named views
   const { data: savedFilters = [] } = useQuery({
@@ -267,7 +270,7 @@ export default function Tickets() {
             <option value="CLOSED">Mark Closed</option>
             <option value="OPEN">Mark Open</option>
             {agents.map(a => <option key={a.email} value={`assign:${a.email}`}>Assign to {a.name}</option>)}
-            <option value="delete">Delete Selected</option>
+            {isAdmin && <option value="delete">Delete Selected</option>}
           </select>
           <button
             onClick={() => {
@@ -361,10 +364,12 @@ export default function Tickets() {
                     </span>
                   </td>
                   <td className="px-4 py-3">
-                    <button onClick={() => { if (window.confirm('Delete this ticket?')) deleteTicket.mutate(ticket.id) }}
-                      className="text-slate-300 hover:text-red-500 transition">
-                      <Trash2 size={14} />
-                    </button>
+                    {isAdmin && (
+                      <button onClick={() => { if (window.confirm('Delete this ticket?')) deleteTicket.mutate(ticket.id) }}
+                        className="text-slate-300 hover:text-red-500 transition">
+                        <Trash2 size={14} />
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}

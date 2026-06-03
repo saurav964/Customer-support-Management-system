@@ -62,6 +62,12 @@ public class EmailPoller {
         ticketService.escalateHighPriorityTickets();
     }
 
+    // Feature 2: Smart skill-based assignment — every 3 minutes
+    @Scheduled(fixedDelay = 180000)
+    public void autoAssignBySkill() {
+        ticketService.autoAssignBySkill();
+    }
+
     @Scheduled(fixedDelayString = "${mail.poll.interval-ms:60000}")
     public void pollEmails() {
         log.info("Polling inbox for new emails...");

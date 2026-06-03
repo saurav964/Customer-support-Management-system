@@ -279,6 +279,16 @@ export default function TicketDetail() {
                 </span>
               </div>
             </div>
+            {/* Feature 3: AI summary — quick glance for agent */}
+            {ticket.aiSummary && (
+              <div className="mb-3 bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2 flex items-start gap-2">
+                <Bot size={14} className="text-indigo-500 mt-0.5 shrink-0" />
+                <div>
+                  <span className="text-xs font-semibold text-indigo-600">AI Summary: </span>
+                  <span className="text-sm text-slate-700">{ticket.aiSummary}</span>
+                </div>
+              </div>
+            )}
             <div className="text-sm text-slate-700 whitespace-pre-wrap bg-slate-50 rounded-lg p-4 leading-relaxed">
               {ticket.body}
             </div>

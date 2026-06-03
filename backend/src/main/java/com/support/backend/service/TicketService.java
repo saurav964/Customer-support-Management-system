@@ -82,9 +82,30 @@ public class TicketService {
             ticket.setAiSent(true);
             ticket.setStatus(Ticket.TicketStatus.IN_PROGRESS);
 
+            // Feature 3: AI ticket summary — quick one-line for agents
+            try {
+                ticket.setAiSummary(claudeAiService.summarizeTicket(ticket.getSubject(), ticket.getBody()));
+            } catch (Exception ignored) {}
+
             try {
                 String sentiment = claudeAiService.analyzeSentiment(ticket.getBody());
                 ticket.setSentiment(sentiment);
+
+                // Feature 4: Sentiment-based priority — angry customers get bumped up
+                if (("ANGRY".equals(sentiment) || "FRUSTRATED".equals(sentiment))
+                        && ticket.getPriority() != Ticket.Priority.URGENT) {
+                    Ticket.Priority bumped = ticket.getPriority() == Ticket.Priority.LOW
+                            ? Ticket.Priority.MEDIUM
+                            : Ticket.Priority.HIGH;
+                    log.info("Bumping ticket priority from {} to {} due to {} sentiment",
+                            ticket.getPriority(), bumped, sentiment);
+                    ticket.setPriority(bumped);
+                }
+            } catch (Exception ignored) {}
+
+            // Feature 2 (skill): Smart auto-assignment by category/skill
+            try {
+                ticket.setAssignedSkill(ticket.getCategory());
             } catch (Exception ignored) {}
 
             // Feature 5: Business-hours SLA — only counts Mon-Fri 9am-6pm
@@ -363,6 +384,46 @@ public class TicketService {
 
     // ─── Scheduled tasks ─────────────────────────────────────────────────────
 
+    // Feature 2: Smart auto-assignment by skill — match ticket category to agent skill
+    public void autoAssignBySkill() {
+        List<Ticket> unassigned = ticketRepository.findAll().stream()
+                .filter(t -> t.getAssignedTo() == null
+                        && t.getCategory() != null
+                        && (t.getStatus() == Ticket.TicketStatus.OPEN || t.getStatus() == Ticket.TicketStatus.IN_PROGRESS))
+                .toList();
+        if (unassigned.isEmpty()) return;
+
+        List<com.support.backend.model.User> agents = agentRepository.findByRole(com.support.backend.model.User.Role.AGENT);
+
+        for (Ticket ticket : unassigned) {
+            // Find agents whose skills include this ticket's category
+            List<com.support.backend.model.User> skilledAgents = agents.stream()
+                    .filter(a -> a.getSkills() != null
+                            && java.util.Arrays.stream(a.getSkills().split(","))
+                                .map(String::trim)
+                                .anyMatch(s -> s.equalsIgnoreCase(ticket.getCategory())))
+                    .toList();
+            if (skilledAgents.isEmpty()) continue;
+
+            // Pick the least busy skilled agent
+            com.support.backend.model.User best = skilledAgents.stream()
+                    .min(java.util.Comparator.comparingLong(a ->
+                            ticketRepository.findByAssignedTo(a.getEmail()).stream()
+                                    .filter(t -> t.getStatus() == Ticket.TicketStatus.OPEN
+                                            || t.getStatus() == Ticket.TicketStatus.IN_PROGRESS).count()))
+                    .orElse(null);
+            if (best == null) continue;
+
+            ticket.setAssignedTo(best.getEmail());
+            ticket.setStatus(Ticket.TicketStatus.IN_PROGRESS);
+            ticketRepository.save(ticket);
+            logAudit(ticket.getId(), "ASSIGNED",
+                    "Auto-assigned to " + best.getEmail() + " (skill: " + ticket.getCategory() + ")", "SYSTEM");
+            sseEmitterService.broadcast("ticket-update", ticket.getId().toString());
+            log.info("Skill-assigned ticket #{} ({}) to {}", ticket.getId(), ticket.getCategory(), best.getEmail());
+        }
+    }
+
     public void autoMarkOverdue() {
         LocalDateTime cutoff = LocalDateTime.now().minusHours(2);
         List<Ticket> overdueTickets = ticketRepository.findOverdueTickets(Ticket.TicketStatus.OPEN, cutoff);
@@ -527,6 +588,37 @@ public class TicketService {
         }
 
         return Map.of("byHour", byHour, "byDay", byDay);
+    }
+
+    // Feature 5: SLA Compliance Report — % of resolved tickets that met their SLA
+    public Map<String, Object> getSlaCompliance() {
+        List<Ticket> all = ticketRepository.findAll();
+
+        // Resolved tickets that had an SLA deadline
+        List<Ticket> resolved = all.stream()
+                .filter(t -> t.getResolvedAt() != null && t.getSlaDeadline() != null)
+                .toList();
+
+        long total = resolved.size();
+        long met = resolved.stream()
+                .filter(t -> t.getResolvedAt().isBefore(t.getSlaDeadline())
+                        || t.getResolvedAt().isEqual(t.getSlaDeadline()))
+                .count();
+        long breached = total - met;
+        double compliance = total > 0 ? Math.round((double) met / total * 100) : 0;
+
+        // Per-agent SLA breaches
+        Map<String, Long> breachesByAgent = resolved.stream()
+                .filter(t -> t.getResolvedAt().isAfter(t.getSlaDeadline()) && t.getAssignedTo() != null)
+                .collect(Collectors.groupingBy(Ticket::getAssignedTo, Collectors.counting()));
+
+        Map<String, Object> result = new HashMap<>();
+        result.put("compliancePercent", compliance);
+        result.put("met", met);
+        result.put("breached", breached);
+        result.put("total", total);
+        result.put("breachesByAgent", breachesByAgent);
+        return result;
     }
 
     public DashboardStats getDashboardStats() {

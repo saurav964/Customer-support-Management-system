@@ -30,6 +30,22 @@ export default function Agents() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['agents'] }),
   })
 
+  // Feature 2: Update agent skills for smart auto-assignment
+  const skillsMutation = useMutation({
+    mutationFn: ({ id, skills }) => api.patch(`/agents/${id}/skills`, { skills }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['agents'] }),
+  })
+
+  const CATEGORIES = ['Billing', 'Account', 'Technical', 'Shipping', 'Returns', 'General']
+
+  const toggleSkill = (agent, category) => {
+    const current = agent.skills ? agent.skills.split(',').map(s => s.trim()).filter(Boolean) : []
+    const updated = current.includes(category)
+      ? current.filter(s => s !== category)
+      : [...current, category]
+    skillsMutation.mutate({ id: agent.id, skills: updated.join(',') })
+  }
+
   const handleSubmit = e => {
     e.preventDefault()
     createMutation.mutate(form)
@@ -111,8 +127,7 @@ export default function Agents() {
               <tr>
                 <th className="text-left px-4 py-3 text-slate-500 font-medium">Name</th>
                 <th className="text-left px-4 py-3 text-slate-500 font-medium">Email</th>
-                <th className="text-left px-4 py-3 text-slate-500 font-medium">Role</th>
-                <th className="text-left px-4 py-3 text-slate-500 font-medium">Login Password</th>
+                <th className="text-left px-4 py-3 text-slate-500 font-medium">Skills (click to toggle)</th>
                 <th className="px-4 py-3"></th>
               </tr>
             </thead>
@@ -122,11 +137,20 @@ export default function Agents() {
                   <td className="px-4 py-3 font-medium text-slate-700">{agent.name}</td>
                   <td className="px-4 py-3 text-slate-500">{agent.email}</td>
                   <td className="px-4 py-3">
-                    <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
-                      Agent
-                    </span>
+                    <div className="flex flex-wrap gap-1">
+                      {CATEGORIES.map(cat => {
+                        const has = agent.skills?.split(',').map(s => s.trim()).includes(cat)
+                        return (
+                          <button key={cat} onClick={() => toggleSkill(agent, cat)}
+                            className={`text-xs px-2 py-0.5 rounded-full border transition ${has
+                              ? 'bg-green-100 text-green-700 border-green-300 font-medium'
+                              : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100'}`}>
+                            {cat}
+                          </button>
+                        )
+                      })}
+                    </div>
                   </td>
-                  <td className="px-4 py-3 text-slate-400 text-xs">agent123 (default)</td>
                   <td className="px-4 py-3">
                     <button
                       onClick={() => {

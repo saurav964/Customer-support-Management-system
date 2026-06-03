@@ -91,6 +91,19 @@ public class ClaudeAiService {
         return callGroq(prompt);
     }
 
+    // Feature 3: AI ticket summary — one short line for agents to read quickly
+    public String summarizeTicket(String subject, String body) {
+        String prompt = String.format("""
+                Summarize this customer support ticket in ONE short sentence (max 15 words).
+                Focus on what the customer wants. Be direct.
+                Return ONLY the summary sentence, nothing else.
+
+                Subject: %s
+                Body: %s
+                """, subject, body);
+        return callGroq(prompt).trim();
+    }
+
     public String analyzeSentiment(String body) {
         String prompt = String.format("""
                 Analyze the sentiment of this customer message.
